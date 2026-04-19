@@ -2,6 +2,7 @@
 
 ## 연구자
 - 이름: sebong (workingsebong)
+- GitHub: github.com/workingsebong/RS-treecanopy
 
 ---
 
@@ -113,18 +114,41 @@ GeoJSON / Shapefile / GeoPackage
 project_root/
 ├── CLAUDE.md                   ← 이 파일
 ├── TREE_CANOPY_PROJECT.md      ← 프로젝트 초안
-├── environment.yml             ← conda 환경 (rs_treecanopy)
-├── papers/                     ← 논문 PDF
+├── environment.yml
+├── .env                        ← API 키 (gitignore)
+├── .gitignore
 │
 ├── data/
-│   ├── raw/                    ← 원본 항공영상 타일
-│   └── processed/              ← 중간 처리 파일, 라벨, 결과
+│   ├── raw/                    ← 원본 항공영상 타일 (gitignore)
+│   └── processed/              ← 중간 처리 파일, 라벨 (gitignore)
 │
-└── notebooks/                  ← 분석 노트북
-    ├── 01_tile_generation/
-    ├── 02_model_training/
-    └── 03_inference_vectorize/
+├── notebooks/                  ← 탐색/실험용
+│   ├── 01_tile_generation/
+│   ├── 02_model_training/
+│   └── 03_inference_vectorize/
+│
+├── src/                        ← 재사용 확정 코드
+│   ├── preprocessing/          ← 타일 분할, 전처리
+│   ├── features/               ← NDVI 등 feature 추출
+│   ├── modeling/               ← 모델 학습/추론 로직
+│   └── visualization/          ← 시각화 함수
+│
+├── outputs/                    ← 결과물 (gitignore)
+│   ├── figures/
+│   ├── tables/
+│   └── logs/
+│
+└── papers/                     ← 논문/발표 자료
+    ├── references/
+    ├── manuscript/
+    ├── presentation/
+    └── submission/
 ```
+
+### 노트북 vs src 구분 원칙
+
+- `notebooks/` — 탐색, 실험, 시각화 확인. 일회성 코드 허용
+- `src/` — 반복 사용하는 확정 함수/클래스만. 노트북에서 import해서 사용
 
 ---
 
