@@ -1,0 +1,31 @@
+name: rs_treecanopy
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+      - torch==2.11.0
+      - torchvision==0.26.0
+      - transformers
+      - python-dotenv
+      - rasterio
+      - geopandas
+      - shapely
+      - pyproj
+      - contextily
+      - opencv-python
+      - pillow
+      - numpy
+      - pandas
+      - scipy
+      - scikit-learn
+      - statsmodels
+      - matplotlib
+      - seaborn
+      - jupyter
+      - ipywidgets
+      - tqdm
