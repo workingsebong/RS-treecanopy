@@ -384,19 +384,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--images",
         type=Path,
-        default=PROJECT_ROOT / "data/processed/labeling_candidates_1024/images",
+        default=PROJECT_ROOT / "data/processed/labeling_candidates_512_random_seoul_urban/images",
         help="Directory containing PNG candidate tiles.",
     )
     parser.add_argument(
         "--selected-csv",
         type=Path,
-        default=PROJECT_ROOT / "data/processed/labeling_candidates_1024/selected_tiles.csv",
+        default=PROJECT_ROOT / "data/processed/labeling_candidates_512_random_seoul_urban/selected_tiles.csv",
         help="CSV with tile metadata for selected candidates.",
     )
     parser.add_argument(
         "--labels",
         type=Path,
-        default=PROJECT_ROOT / "data/processed/labels_1024",
+        default=PROJECT_ROOT / "data/processed/labels_512_random_seoul_urban",
         help="Output directory for JSON, YOLO-seg, and GeoJSON labels.",
     )
     return parser.parse_args()

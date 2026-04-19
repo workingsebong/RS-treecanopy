@@ -1,4 +1,5 @@
 const canvas = document.getElementById("labelCanvas");
+const canvasWrap = document.getElementById("canvasWrap");
 const ctx = canvas.getContext("2d");
 const tileList = document.getElementById("tileList");
 const tileStats = document.getElementById("tileStats");
@@ -36,9 +37,15 @@ const state = {
   dirty: false,
   panning: false,
   draggingVertex: false,
+  autoPlotting: false,
+  lastAutoPointAt: 0,
   lastPointer: null,
   spaceDown: false,
 };
+
+let resizeFrame = null;
+const AUTO_POINT_MIN_IMAGE_DISTANCE = 6;
+const AUTO_POINT_MIN_MS = 35;
 
 function api(path, options = {}) {
   return fetch(path, {
@@ -71,10 +78,20 @@ function updateShapeInfo() {
 function resizeCanvas() {
   const rect = canvas.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
-  canvas.width = Math.max(1, Math.floor(rect.width * dpr));
-  canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+  const nextWidth = Math.max(1, Math.round(rect.width * dpr));
+  const nextHeight = Math.max(1, Math.round(rect.height * dpr));
+  if (canvas.width !== nextWidth) canvas.width = nextWidth;
+  if (canvas.height !== nextHeight) canvas.height = nextHeight;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   draw();
+}
+
+function scheduleResizeCanvas() {
+  if (resizeFrame !== null) return;
+  resizeFrame = window.requestAnimationFrame(() => {
+    resizeFrame = null;
+    resizeCanvas();
+  });
 }
 
 function canvasSize() {
@@ -111,9 +128,12 @@ function imageToScreen(point) {
 
 function eventPoint(event) {
   const rect = canvas.getBoundingClientRect();
+  const size = canvasSize();
+  const scaleX = rect.width > 0 ? size.width / rect.width : 1;
+  const scaleY = rect.height > 0 ? size.height / rect.height : 1;
   return {
-    x: event.clientX - rect.left,
-    y: event.clientY - rect.top,
+    x: (event.clientX - rect.left) * scaleX,
+    y: (event.clientY - rect.top) * scaleY,
   };
 }
 
@@ -258,6 +278,8 @@ function draw() {
 function startDrawing() {
   state.drawing = true;
   state.currentPoints = [];
+  state.autoPlotting = false;
+  state.lastAutoPointAt = 0;
   state.selectedShape = -1;
   state.selectedVertex = -1;
   buttons.draw.textContent = "Drawing";
@@ -268,9 +290,27 @@ function startDrawing() {
 function cancelDrawing() {
   state.drawing = false;
   state.currentPoints = [];
+  state.autoPlotting = false;
+  state.lastAutoPointAt = 0;
   buttons.draw.textContent = "Start Polygon";
   updateShapeInfo();
   draw();
+}
+
+function addDrawingPoint(imagePoint, force = false) {
+  if (!state.drawing) return false;
+  const lastPoint = state.currentPoints[state.currentPoints.length - 1];
+  const now = window.performance.now();
+  if (!force && lastPoint) {
+    const farEnough = pointDistance(imagePoint, lastPoint) >= AUTO_POINT_MIN_IMAGE_DISTANCE;
+    const slowEnough = now - state.lastAutoPointAt >= AUTO_POINT_MIN_MS;
+    if (!farEnough || !slowEnough) return false;
+  }
+  state.currentPoints.push(imagePoint);
+  state.lastAutoPointAt = now;
+  updateShapeInfo();
+  draw();
+  return true;
 }
 
 function finishPolygon() {
@@ -281,9 +321,14 @@ function finishPolygon() {
     points: state.currentPoints.map((p) => [Number(p.x.toFixed(3)), Number(p.y.toFixed(3))]),
   });
   state.selectedShape = state.shapes.length - 1;
-  cancelDrawing();
+  state.selectedVertex = -1;
+  state.currentPoints = [];
+  state.autoPlotting = false;
+  state.lastAutoPointAt = 0;
+  buttons.draw.textContent = "Drawing";
   setDirty(true);
   updateShapeInfo();
+  draw();
 }
 
 function undoAction() {
@@ -345,6 +390,8 @@ async function loadTile(index) {
   state.shapes = [];
   state.currentPoints = [];
   state.drawing = false;
+  state.autoPlotting = false;
+  state.lastAutoPointAt = 0;
   state.selectedShape = -1;
   state.selectedVertex = -1;
   setDirty(false);
@@ -366,6 +413,7 @@ async function loadTile(index) {
     state.imageLoaded = true;
     emptyState.classList.add("hidden");
     buttons.draw.textContent = "Start Polygon";
+    resizeCanvas();
     fitImage();
     updateShapeInfo();
   };
@@ -404,6 +452,13 @@ function zoomAt(screenPoint, factor) {
   draw();
 }
 
+function panBy(dx, dy) {
+  if (!state.imageLoaded) return;
+  state.offsetX += dx;
+  state.offsetY += dy;
+  draw();
+}
+
 canvas.addEventListener("pointerdown", (event) => {
   if (!state.imageLoaded) return;
   canvas.setPointerCapture(event.pointerId);
@@ -421,14 +476,14 @@ canvas.addEventListener("pointerdown", (event) => {
     if (state.currentPoints.length >= 3) {
       const firstScreen = imageToScreen(state.currentPoints[0]);
       if (pointDistance(screen, firstScreen) < 12) {
+        state.autoPlotting = false;
         finishPolygon();
         return;
       }
     }
     if (insideImage(rawImagePoint)) {
-      state.currentPoints.push(imagePoint);
-      updateShapeInfo();
-      draw();
+      addDrawingPoint(imagePoint, true);
+      state.autoPlotting = true;
     }
     return;
   }
@@ -476,12 +531,25 @@ canvas.addEventListener("pointermove", (event) => {
     return;
   }
 
+  if (state.drawing && state.autoPlotting && insideImage(rawImagePoint)) {
+    if (!addDrawingPoint(imagePoint)) draw();
+    return;
+  }
+
   if (state.drawing) draw();
 });
 
 canvas.addEventListener("pointerup", () => {
   state.panning = false;
   state.draggingVertex = false;
+  state.autoPlotting = false;
+  state.lastPointer = null;
+});
+
+canvas.addEventListener("pointercancel", () => {
+  state.panning = false;
+  state.draggingVertex = false;
+  state.autoPlotting = false;
   state.lastPointer = null;
 });
 
@@ -505,7 +573,12 @@ canvas.addEventListener(
   { passive: false }
 );
 
-window.addEventListener("resize", resizeCanvas);
+window.addEventListener("resize", scheduleResizeCanvas);
+
+if ("ResizeObserver" in window) {
+  const canvasObserver = new ResizeObserver(scheduleResizeCanvas);
+  canvasObserver.observe(canvasWrap);
+}
 
 window.addEventListener("keydown", async (event) => {
   if (event.code === "Space") {
@@ -520,6 +593,15 @@ window.addEventListener("keydown", async (event) => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {
     event.preventDefault();
     undoAction();
+    return;
+  }
+  if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+    event.preventDefault();
+    const step = event.shiftKey ? 120 : 48;
+    if (event.key === "ArrowLeft") panBy(step, 0);
+    if (event.key === "ArrowRight") panBy(-step, 0);
+    if (event.key === "ArrowUp") panBy(0, step);
+    if (event.key === "ArrowDown") panBy(0, -step);
     return;
   }
   if (event.key.toLowerCase() === "s") {

@@ -3,6 +3,9 @@ CLAUDE.md
 data/raw/
 data/processed/
 outputs/
+runs/
+yolo*.pt
+*.pt
 __pycache__/
 *.pyc
 .ipynb_checkpoints/

@@ -42,15 +42,27 @@ GeoJSON / Shapefile
 ## 현재 상태
 
 - [x] V-World 항공사진 수집 파일럿 완료
-- [x] 1024px 라벨링 후보 타일 생성
+- [x] 512px 라벨링 후보 타일 생성
+- [x] 공원·도시자연공원구역 제외 마스크 적용
 - [x] 프로젝트 전용 polygon 라벨링 앱 추가
-- [ ] 라벨링 시작 (두렵다)
-- [ ] 모델 학습
+- [x] 475개 tree crown instance segmentation polygon 라벨 완료
+- [x] YOLO11n-seg 베이스라인 학습
 - [ ] Tree map 생성
 
 ---
 
 ## 라벨링 앱
+
+랜덤 도시부 샘플을 다시 만들 때:
+
+```bash
+conda activate svi_segformer
+python tools/random_urban_sampling.py
+```
+
+기본 실행은 `data/raw` 아래의 UPIS 공원/도시자연공원구역 shapefile을 찾아 제외 마스크로 씁니다. patch나 tile bbox의 5% 이상이 제외 마스크와 겹치면 샘플링/후보 선별에서 빠집니다.
+
+라벨링 앱 실행:
 
 ```bash
 conda activate svi_segformer
@@ -63,7 +75,30 @@ python tools/labeling_app/server.py --host 127.0.0.1 --port 8765
 http://127.0.0.1:8765
 ```
 
-입력은 `data/processed/labeling_candidates_1024/images`의 후보 타일이고, 저장하면 `data/processed/labels_1024` 아래에 JSON, YOLO-seg txt, GeoJSON이 같이 생깁니다.
+입력은 `data/processed/labeling_candidates_512_random_seoul_urban/images`의 후보 타일이고, 저장하면 `data/processed/labels_512_random_seoul_urban` 아래에 JSON, YOLO-seg txt, GeoJSON이 같이 생깁니다.
+
+---
+
+## 모델 학습
+
+YOLO-seg 학습셋 생성:
+
+```bash
+conda activate svi_segformer
+python tools/prepare_yolo_seg_dataset.py --overwrite
+```
+
+YOLO11n-seg 베이스라인 학습:
+
+```bash
+YOLO_CONFIG_DIR=/tmp/Ultralytics MPLCONFIGDIR=/tmp/matplotlib \
+yolo task=segment mode=train model=yolo11n-seg.pt \
+  data=data/processed/yolo_seg_512_random_seoul_urban/dataset.yaml \
+  epochs=50 imgsz=512 batch=2 device=cpu workers=0 \
+  project=outputs/yolo name=tree_crown_512_yolo11n_seg_e50 exist_ok=True patience=20
+```
+
+현재 베이스라인은 36개 타일, 475개 instance polygon으로 학습했습니다. Patch 단위로 train/val/test를 나눴고, test split 기준 mask mAP50은 약 `0.353`, mask mAP50-95는 약 `0.134`입니다.
 
 ---
 

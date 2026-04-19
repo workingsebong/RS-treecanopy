@@ -18,17 +18,17 @@ http://127.0.0.1:8765
 ## Inputs
 
 ```text
-data/processed/labeling_candidates_1024/images/*.png
-data/processed/labeling_candidates_1024/selected_tiles.csv
+data/processed/labeling_candidates_512_random_seoul_urban/images/*.png
+data/processed/labeling_candidates_512_random_seoul_urban/selected_tiles.csv
 ```
 
 ## Outputs
 
 ```text
-data/processed/labels_1024/json/*.json
-data/processed/labels_1024/yolo_seg/*.txt
-data/processed/labels_1024/geojson/*.geojson
-data/processed/labels_1024/classes.txt
+data/processed/labels_512_random_seoul_urban/json/*.json
+data/processed/labels_512_random_seoul_urban/yolo_seg/*.txt
+data/processed/labels_512_random_seoul_urban/geojson/*.geojson
+data/processed/labels_512_random_seoul_urban/classes.txt
 ```
 
 ## Shortcuts
