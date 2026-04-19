@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Tree Crown Labeler</title>
+    <link rel="stylesheet" href="/static/style.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <aside class="sidebar" aria-label="Tile list">
+        <div class="brand">
+          <h1>Tree Crown Labeler</h1>
+          <p>Draw one polygon per tree crown.</p>
+        </div>
+        <div class="tile-stats" id="tileStats">Loading tiles...</div>
+        <ol class="tile-list" id="tileList"></ol>
+      </aside>
+
+      <section class="workspace">
+        <header class="toolbar">
+          <div class="tile-title">
+            <strong id="tileName">No tile loaded</strong>
+            <span id="saveState">Idle</span>
+          </div>
+          <div class="tool-buttons" aria-label="Labeling actions">
+            <button id="prevBtn" type="button">Previous</button>
+            <button id="nextBtn" type="button">Next</button>
+            <button id="drawBtn" type="button" class="primary">Start Polygon</button>
+            <button id="finishBtn" type="button">Finish</button>
+            <button id="undoBtn" type="button">Undo</button>
+            <button id="deleteBtn" type="button">Delete</button>
+            <button id="fitBtn" type="button">Fit</button>
+            <button id="saveBtn" type="button" class="primary">Save</button>
+          </div>
+        </header>
+
+        <div class="canvas-wrap" id="canvasWrap">
+          <canvas id="labelCanvas" aria-label="Polygon labeling canvas"></canvas>
+          <div class="empty-state" id="emptyState">Loading first tile...</div>
+        </div>
+
+        <footer class="statusbar">
+          <span id="cursorInfo">x: -, y: -</span>
+          <span id="shapeInfo">0 polygons</span>
+          <span>Click to add points. Enter or double-click to finish. Space-drag to pan. Wheel to zoom. S saves.</span>
+        </footer>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
