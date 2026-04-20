@@ -3,6 +3,7 @@ CLAUDE.md
 data/raw/
 data/processed/
 outputs/
+papers/
 runs/
 yolo*.pt
 *.pt

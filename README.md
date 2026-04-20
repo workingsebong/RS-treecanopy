@@ -1,116 +1,136 @@
 # RS-treecanopy
 
-나무를 찾습니다. 한 그루씩.
+서울 고해상도 항공사진에서 **tree canopy semantic segmentation** 기반 tree canopy map을 생성하고, 도시 미기후(기온) 분석에 활용합니다.
 
----
+## Pipeline
 
-## 뭐 하는 프로젝트냐면
-
-서울 어딘가의 여름 항공사진을 받아서, 나무 하나하나를 AI한테 찾아내게 시키고, 그 결과로 tree map을 만드는 프로젝트입니다.
-
-Landsat으로 하면 30m/px라서 나무가 픽셀 속에 묻혀버립니다. 그래서 0.25m짜리 항공사진을 씁니다. 나무보다 픽셀이 작아야 나무를 찾죠.
-
----
-
-## 파이프라인 요약
-
-```
-항공사진 (0.25m/px, 여름)
+```text
+V-World WMTS aerial imagery (~0.25 m/px, zoom 19)
+    ↓  tools/random_urban_sampling.py
+urban random patch sampling (park / nature-park exclusion)
+    ↓  tools/labeling_app/
+manual canopy polygon labeling
+    ↓  tools/prepare_semantic_seg_dataset.py
+binary semantic mask conversion
+    ↓  tools/train_segformer_semantic.py
+restor/tcd-segformer-mit-b2 fine-tuning
     ↓
-타일 분할
-    ↓
-라벨링 (사람이 직접... 네)
-    ↓
-YOLO-seg / Mask R-CNN 학습
-    ↓
-개별 crown mask + 위치 + 면적
-    ↓
-GeoJSON / Shapefile
+Tree Canopy Map (binary mask)
+    ↓  [next]
+polygonize → canopy area → S-DoT AT mixed-effects model
 ```
 
----
+## Current Result
 
-## 기술 스택
+Main model: `restor/tcd-segformer-mit-b2` fine-tuned on 36-tile Seoul pilot dataset
 
-- Python 3.10, WSL2
-- rasterio, geopandas, shapely
-- PyTorch, ultralytics (YOLO), transformers
-- V-World WMTS API (테스트용 항공사진)
+| model | setting | IoU | Dice | Precision | Recall |
+|-------|---------|-----|------|-----------|--------|
+| `nvidia/mit-b0` | fine-tuned | 0.507 | 0.673 | 0.679 | 0.666 |
+| `restor/tcd-segformer-mit-b2` | zero-shot, thr=0.30 | 0.654 | 0.791 | 0.763 | 0.821 |
+| `restor/tcd-segformer-mit-b2` | fine-tuned, thr=0.55 | **0.691** | **0.817** | 0.763 | 0.879 |
 
----
+Best model output:
 
-## 현재 상태
+```text
+outputs/segformer/tree_canopy_semantic_tcd_mit_b2_finetune_e50/
+```
 
-- [x] V-World 항공사진 수집 파일럿 완료
-- [x] 512px 라벨링 후보 타일 생성
-- [x] 공원·도시자연공원구역 제외 마스크 적용
-- [x] 프로젝트 전용 polygon 라벨링 앱 추가
-- [x] 475개 tree crown instance segmentation polygon 라벨 완료
-- [x] YOLO11n-seg 베이스라인 학습
-- [ ] Tree map 생성
-
----
-
-## 라벨링 앱
-
-랜덤 도시부 샘플을 다시 만들 때:
+## Main Commands
 
 ```bash
 conda activate svi_segformer
+```
+
+**1. Random urban sampling & tile generation**
+```bash
 python tools/random_urban_sampling.py
 ```
 
-기본 실행은 `data/raw` 아래의 UPIS 공원/도시자연공원구역 shapefile을 찾아 제외 마스크로 씁니다. patch나 tile bbox의 5% 이상이 제외 마스크와 겹치면 샘플링/후보 선별에서 빠집니다.
-
-라벨링 앱 실행:
-
+**2. Labeling app**
 ```bash
-conda activate svi_segformer
 python tools/labeling_app/server.py --host 127.0.0.1 --port 8765
+# → http://127.0.0.1:8765
 ```
 
-브라우저에서 엽니다.
+**3. Prepare semantic segmentation dataset**
+```bash
+python tools/prepare_semantic_seg_dataset.py --overwrite
+```
+
+**4. Zero-shot evaluation**
+```bash
+MPLCONFIGDIR=/tmp/matplotlib \
+python tools/evaluate_segformer_semantic_model.py \
+  --model-id restor/tcd-segformer-mit-b2 \
+  --output-dir outputs/segformer/tree_canopy_semantic_tcd_mit_b2_zeroshot \
+  --image-size 512 --device cuda --overwrite
+```
+
+**5. Fine-tune**
+```bash
+MPLCONFIGDIR=/tmp/matplotlib \
+python tools/train_segformer_semantic.py \
+  --pretrained-model restor/tcd-segformer-mit-b2 \
+  --epochs 50 --batch-size 4 --image-size 512 --device cuda \
+  --lr 5e-5 --max-canopy-weight 5 \
+  --output-dir outputs/segformer/tree_canopy_semantic_tcd_mit_b2_finetune_e50 \
+  --overwrite --no-random-fallback
+```
+
+**6. Threshold sweep**
+```bash
+MPLCONFIGDIR=/tmp/matplotlib \
+python tools/evaluate_segformer_thresholds.py \
+  --run-dir outputs/segformer/tree_canopy_semantic_tcd_mit_b2_finetune_e50 \
+  --image-size 512 --device cuda
+```
+
+**7. Generate presentation**
+```bash
+python tools/make_presentation.py
+# → papers/presentation/tree_canopy_presentation.pptx
+```
+
+## Structure
 
 ```text
-http://127.0.0.1:8765
+tools/
+  labeling_app/                   local web app for canopy polygon labeling
+  random_urban_sampling.py
+  prepare_semantic_seg_dataset.py
+  train_segformer_semantic.py
+  evaluate_segformer_semantic_model.py
+  evaluate_segformer_thresholds.py
+  render_pretrained_model_review_images.py
+  make_presentation.py
+  make_research_proposal_presentation.py
+
+data/                             ignored
+  raw/
+  processed/
+
+outputs/                          ignored
+  segformer/                      model training & evaluation results
+  figures/                        intermediate figures for presentations
+  yolo/                           legacy
+  pretrained_baselines/           legacy
+
+papers/
+  presentation/                   final PPT files
+  manuscript/
+  references/
+  submission/
+
+legacy/
+  tools/                          YOLO, ArcGIS, DeepForest, Detectree2 scripts
+  notebooks/
+    01_model_training/
+    02_inference_vectorize/
 ```
 
-입력은 `data/processed/labeling_candidates_512_random_seoul_urban/images`의 후보 타일이고, 저장하면 `data/processed/labels_512_random_seoul_urban` 아래에 JSON, YOLO-seg txt, GeoJSON이 같이 생깁니다.
+## Notes
 
----
-
-## 모델 학습
-
-YOLO-seg 학습셋 생성:
-
-```bash
-conda activate svi_segformer
-python tools/prepare_yolo_seg_dataset.py --overwrite
-```
-
-YOLO11n-seg 베이스라인 학습:
-
-```bash
-YOLO_CONFIG_DIR=/tmp/Ultralytics MPLCONFIGDIR=/tmp/matplotlib \
-yolo task=segment mode=train model=yolo11n-seg.pt \
-  data=data/processed/yolo_seg_512_random_seoul_urban/dataset.yaml \
-  epochs=50 imgsz=512 batch=2 device=cpu workers=0 \
-  project=outputs/yolo name=tree_crown_512_yolo11n_seg_e50 exist_ok=True patience=20
-```
-
-현재 베이스라인은 36개 타일, 475개 instance polygon으로 학습했습니다. Patch 단위로 train/val/test를 나눴고, test split 기준 mask mAP50은 약 `0.353`, mask mAP50-95는 약 `0.134`입니다.
-
----
-
-## 폴더 구조
-
-```
-├── notebooks/     탐색·실험용
-├── src/           재사용 코드
-├── data/          데이터 (gitignore)
-└── outputs/       결과물 (gitignore)
-```
-
----
-
-> 문의: 나무한테 하세요.
+- `data/`, `outputs/`, `.env`, and model weights are git-ignored.
+- YOLO11n-seg, DeepForest, Detectree2, ArcGIS experiments moved to `legacy/`.
+- Next: canopy mask polygonize → buffer join with S-DoT → mixed-effects AT model.
